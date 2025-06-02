@@ -1,16 +1,15 @@
-const admin = require('firebase-admin');
-const dotenv = require('dotenv');
+const { verifyIdToken } = require('../services/firebaseServices');
 
-// Inisialisasi Firebase Admin SDK
-dotenv.config();
+const verifyFirebaseUser = async (request, h) => {
+  const idToken = request.headers.authorization?.replace('Bearer ', '');
+  if (!idToken) return h.response({ message: 'Unauthorized' }).code(401);
 
-// Inisialisasi Firebase Admin dengan kredensial dari environment variables
-admin.initializeApp({
-  credential: admin.credential.cert({
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-  }),
-});
+  try {
+    const user = await verifyIdToken(idToken);
+    return h.response({ message: 'Authorized', user }).code(200);
+  } catch (err) {
+    return h.response({ message: 'Invalid token' }).code(401);
+  }
+};
 
-module.exports = admin;
+module.exports = { verifyFirebaseUser };
