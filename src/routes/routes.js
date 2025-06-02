@@ -8,7 +8,11 @@ const routes = [
     path: '/youtube/videos',
     options: {
       pre: [{ method: authMiddleware }],
+      log: {
+        collect: true,
+      },
     },
+
     handler: getUserVideos,
   },
   {
@@ -19,6 +23,9 @@ const routes = [
       payload: {
         parse: true,
         allow: 'application/json',
+      },
+      log: {
+        collect: true,
       },
     },
   },

@@ -62,4 +62,49 @@ const getUserVideos = async (req, h) => {
   }
 };
 
-module.exports = { getUserVideos };
+const getComments = async (req, h) => {
+  const { access_token } = req.auth.credentials; // lebih aman ambil dari auth
+  const { videoId } = req.query;
+
+  if (!videoId) {
+    return h.response({ error: 'Missing videoId in query' }).code(400);
+  }
+
+  try {
+    const commentRes = await fetch(
+      `https://www.googleapis.com/youtube/v3/commentThreads?part=snippet&videoId=${encodeURIComponent(videoId)}&maxResults=20&order=time`,
+      {
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      }
+    );
+
+    if (!commentRes.ok) {
+      const error = await commentRes.json();
+      console.error('[Comment Fetch Error]', error);
+      return h.response({ error: 'Failed to fetch comments' }).code(commentRes.status);
+    }
+
+    const commentData = await commentRes.json();
+
+    const comments = (commentData.items || []).map(item => {
+      const snippet = item.snippet.topLevelComment.snippet;
+      return {
+        text: snippet.textDisplay,
+        author: snippet.authorDisplayName,
+        publishedAt: snippet.publishedAt,
+        likeCount: snippet.likeCount,
+        authorImage: snippet.authorProfileImageUrl
+      };
+    });
+
+    return h.response({ comments }).code(200);
+  } catch (err) {
+    console.error('[💥 Unexpected Error]', err);
+    return h.response({ error: 'Internal server error' }).code(500);
+  }
+};
+
+
+module.exports = { getUserVideos, getComments };
