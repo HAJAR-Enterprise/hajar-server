@@ -4,7 +4,7 @@ const { authMiddleware } = require('../middleware/authMiddleware');
 
 const routes = [
   {
-    method: 'POST',
+    method: 'GET',
     path: '/youtube/videos',
     options: {
       pre: [{ method: authMiddleware }],
