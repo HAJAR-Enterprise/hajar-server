@@ -1,7 +1,13 @@
 const { getToken, updateToken } = require("../auth/token");
 const { oauth2Client } = require("../auth/oauth");
+const db = require("../config/firebase");
 
 const authMiddleware = async (request, h) => {
+  // Skip middleware untuk endpoint login/callback
+  if (request.path === "/api/login/callback") {
+    return h.continue;
+  }
+
   const authHeader = request.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return h
@@ -11,22 +17,27 @@ const authMiddleware = async (request, h) => {
   }
 
   const token = authHeader.split(" ")[1];
-  const userId = "user1"; // Sementara, nanti ganti dengan ID dari token
 
-  const storedToken = await getToken(userId);
-  if (!storedToken) {
-    return h.response({ error: "Token not found" }).code(401).takeover();
-  }
-
-  oauth2Client.setCredentials({
-    access_token: token,
-    refresh_token: storedToken.refreshToken,
-  });
+  oauth2Client.setCredentials({ access_token: token });
 
   try {
-    const tokenInfo = await oauth2Client.getAccessToken();
-    console.log("Token Info:", tokenInfo.token);
-    await oauth2Client.getTokenInfo(token); // Validasi token
+    const tokenInfo = await oauth2Client.getTokenInfo(token);
+    console.log("Token Info Response:", tokenInfo);
+    const userId = tokenInfo.sub;
+    if (!userId || userId.trim() === "") {
+      throw new Error("User ID not found in token info");
+    }
+    console.log("Extracted User ID:", userId);
+
+    const storedToken = await getToken(userId);
+    if (!storedToken) {
+      return h.response({ error: "Token not found" }).code(401).takeover();
+    }
+
+    oauth2Client.setCredentials({
+      access_token: token,
+      refresh_token: storedToken.refreshToken,
+    });
 
     request.auth = { credentials: { userId, token: tokenInfo.token || token } };
     return h.continue;
@@ -36,9 +47,24 @@ const authMiddleware = async (request, h) => {
       error.response?.data || error.message
     );
     if (error.response?.status === 401 || error.response?.status === 400) {
-      // Tangani 401 dan 400
       try {
         console.log("Attempting to refresh token...");
+        const tokenInfo = await oauth2Client.getTokenInfo(token);
+        const userId = tokenInfo.sub;
+        if (!userId || userId.trim() === "") {
+          throw new Error("User ID not found in token info during refresh");
+        }
+
+        const storedToken = await getToken(userId);
+        if (!storedToken) {
+          return h.response({ error: "Token not found" }).code(401).takeover();
+        }
+
+        oauth2Client.setCredentials({
+          access_token: token,
+          refresh_token: storedToken.refreshToken,
+        });
+
         const refreshedTokens = await oauth2Client.refreshAccessToken();
         console.log("Refreshed Tokens:", refreshedTokens.credentials);
         oauth2Client.setCredentials(refreshedTokens.credentials);
@@ -61,6 +87,17 @@ const authMiddleware = async (request, h) => {
           "Token Refresh Error:",
           refreshError.response?.data || refreshError.message
         );
+        if (refreshError.response?.data?.error === "invalid_grant") {
+          const tokenInfo = await oauth2Client
+            .getTokenInfo(token)
+            .catch(() => ({}));
+          const userId = tokenInfo.sub || "unknown";
+          await db.collection("tokens").doc(userId).delete();
+          return h
+            .response({ error: "Refresh token invalid, please login again" })
+            .code(401)
+            .takeover();
+        }
         return h
           .response({ error: "Failed to refresh token" })
           .code(401)

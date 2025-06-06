@@ -1,4 +1,8 @@
-const { getComments, deleteComment } = require("../handlers/comment");
+const {
+  getComments,
+  deleteComment,
+  deleteAllComments,
+} = require("../handlers/comment");
 
 module.exports = [
   {
@@ -10,5 +14,10 @@ module.exports = [
     method: "DELETE",
     path: "/api/{channelId}/{videoId}/{commentId}",
     handler: deleteComment,
+  },
+  {
+    method: "DELETE",
+    path: "/api/{channelId}/{videoId}/comments",
+    handler: deleteAllComments,
   },
 ];

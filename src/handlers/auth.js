@@ -1,21 +1,10 @@
 const { getAuthUrl, getTokens } = require("../auth/oauth");
 const { saveToken, getToken } = require("../auth/token");
+const { oauth2Client } = require("../auth/oauth");
 
 const loginHandler = async (request, h) => {
-  const userId = "user1"; // Sementara, nanti ganti dengan ID pengguna
-  const existingToken = await getToken(userId);
-
-  if (existingToken) {
-    return h
-      .response({
-        message: "User already logged in",
-        token: existingToken.accessToken,
-      })
-      .code(200);
-  }
-
   const authUrl = getAuthUrl();
-  return h.redirect(authUrl).code(302); // Redirect ke Google OAuth
+  return h.redirect(authUrl).code(302);
 };
 
 const callbackHandler = async (request, h) => {
@@ -26,7 +15,13 @@ const callbackHandler = async (request, h) => {
 
   try {
     const tokens = await getTokens(code);
-    const userId = "user1"; // Sementara, nanti ganti dengan ID pengguna
+    console.log("Received Tokens in Callback:", tokens); // Debug
+    const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
+    console.log("Token Info:", tokenInfo); // Debug
+    const userId = tokenInfo.sub;
+    if (!userId || userId.trim() === "") {
+      return h.response({ error: "Invalid user ID from token info" }).code(400);
+    }
     await saveToken(userId, tokens);
     return h
       .response({
@@ -35,7 +30,14 @@ const callbackHandler = async (request, h) => {
       })
       .code(200);
   } catch (error) {
-    console.error("OAuth Error:", error); // Tambah logging untuk debug
+    console.error("OAuth Error:", error.message);
+    if (error.message.includes("invalid_grant")) {
+      return h
+        .response({
+          error: "Invalid authorization code, please try logging in again",
+        })
+        .code(401);
+    }
     return h.response({ error: error.message }).code(500);
   }
 };

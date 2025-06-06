@@ -64,13 +64,24 @@ const deleteComment = async (request, h) => {
   });
 
   try {
+    // Validasi apakah komentar ada di Firestore
+    const commentRef = db.collection("comments").doc(commentId);
+    const commentDoc = await commentRef.get();
+    if (!commentDoc.exists) {
+      return h.response({ error: "Comment not found" }).code(404);
+    }
+
+    const commentData = commentDoc.data();
+    if (commentData.status === "deleted") {
+      return h.response({ error: "Comment already deleted" }).code(400);
+    }
+
     // Hapus komentar dari YouTube
     await youtube.comments.delete({
       id: commentId,
     });
 
     // Update status di Firestore
-    const commentRef = db.collection("comments").doc(commentId);
     await commentRef.update({
       status: "deleted",
       deletedAt: new Date().toISOString(),
@@ -88,4 +99,88 @@ const deleteComment = async (request, h) => {
   }
 };
 
-module.exports = { getComments, deleteComment };
+const deleteAllComments = async (request, h) => {
+  const { credentials } = request.auth;
+  const { channelId, videoId } = request.params;
+  oauth2Client.setCredentials({ access_token: credentials.token });
+
+  const youtube = google.youtube({
+    version: "v3",
+    auth: oauth2Client,
+  });
+
+  try {
+    // Ambil semua komentar dari Firestore untuk video tertentu
+    const snapshot = await db
+      .collection("comments")
+      .where("videoId", "==", videoId)
+      .where("channelId", "==", channelId)
+      .where("status", "!=", "deleted")
+      .get();
+
+    if (snapshot.empty) {
+      return h
+        .response({
+          message: "No comments to delete",
+          token: credentials.token,
+        })
+        .code(200);
+    }
+
+    const commentIds = [];
+    snapshot.forEach((doc) => {
+      commentIds.push(doc.id);
+    });
+
+    // Hapus komentar dari YouTube terlebih dahulu
+    const failedDeletions = [];
+    for (const commentId of commentIds) {
+      try {
+        await youtube.comments.delete({ id: commentId });
+      } catch (error) {
+        console.error(
+          `Failed to delete comment ${commentId} from YouTube:`,
+          error
+        );
+        failedDeletions.push(commentId);
+      }
+    }
+
+    // Update status di Firestore hanya untuk komentar yang berhasil dihapus
+    const batch = db.batch();
+    commentIds.forEach((commentId) => {
+      if (!failedDeletions.includes(commentId)) {
+        const ref = db.collection("comments").doc(commentId);
+        batch.update(ref, {
+          status: "deleted",
+          deletedAt: new Date().toISOString(),
+        });
+      }
+    });
+
+    await batch.commit();
+
+    const deletedCount = commentIds.length - failedDeletions.length;
+    if (failedDeletions.length > 0) {
+      return h
+        .response({
+          message: `Deleted ${deletedCount} comments, failed to delete ${failedDeletions.length} comments`,
+          failedCommentIds: failedDeletions,
+          token: credentials.token,
+        })
+        .code(207); // 207 Multi-Status untuk menunjukkan sebagian berhasil
+    }
+
+    return h
+      .response({
+        message: `Deleted ${deletedCount} comments`,
+        token: credentials.token,
+      })
+      .code(200);
+  } catch (error) {
+    console.error("Error deleting all comments:", error);
+    return h.response({ error: error.message }).code(500);
+  }
+};
+
+module.exports = { getComments, deleteComment, deleteAllComments };

@@ -1,9 +1,11 @@
 const db = require("../config/firebase");
+const { encrypt, decrypt } = require("../utils/encrypt");
 
 const saveToken = async (userId, tokens) => {
+  const encryptedRefreshToken = encrypt(tokens.refresh_token);
   await db.collection("tokens").doc(userId).set({
     accessToken: tokens.access_token,
-    refreshToken: tokens.refresh_token, // Simpan plain text
+    refreshToken: encryptedRefreshToken,
     expiryDate: tokens.expiry_date,
     createdAt: new Date().toISOString(),
   });
@@ -12,19 +14,23 @@ const saveToken = async (userId, tokens) => {
 const getToken = async (userId) => {
   const doc = await db.collection("tokens").doc(userId).get();
   if (!doc.exists) return null;
-  return doc.data();
+  const data = doc.data();
+  return {
+    ...data,
+    refreshToken: decrypt(data.refreshToken),
+  };
 };
 
 const updateToken = async (userId, tokens) => {
   const storedToken = await getToken(userId);
-  await db
-    .collection("tokens")
-    .doc(userId)
-    .update({
-      accessToken: tokens.access_token,
-      refreshToken: tokens.refresh_token || storedToken.refreshToken, // Simpan plain text
-      expiryDate: tokens.expiry_date,
-    });
+  const encryptedRefreshToken = encrypt(
+    tokens.refresh_token || storedToken.refreshToken
+  );
+  await db.collection("tokens").doc(userId).update({
+    accessToken: tokens.access_token,
+    refreshToken: encryptedRefreshToken,
+    expiryDate: tokens.expiry_date,
+  });
 };
 
 module.exports = { saveToken, getToken, updateToken };
