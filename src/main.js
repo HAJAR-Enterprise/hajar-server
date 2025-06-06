@@ -12,11 +12,19 @@ const init = async () => {
   const server = Hapi.server({
     port: process.env.PORT || 3000,
     host: "localhost",
+    routes: {
+      cors: {
+        origin: ["*"], 
+        headers: ["Authorization", "Content-Type"], 
+        additionalHeaders: ["cache-control", "x-requested-with"],
+        credentials: true, 
+      },
+    },
   });
 
   // Register routes
   server.route([
-    ...authRoutes.map((route) => ({ ...route, options: { auth: false } })), // Nonaktifkan auth untuk rute autentikasi
+    ...authRoutes.map((route) => ({ ...route, options: { auth: false } })), 
     ...channelRoutes,
     ...videoRoutes,
     ...commentRoutes,

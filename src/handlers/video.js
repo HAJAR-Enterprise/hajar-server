@@ -28,6 +28,9 @@ const getVideos = async (request, h) => {
         title: item.snippet.title,
         channelId,
         publishedAt: item.snippet.publishedAt,
+        thumbnail:
+          item.snippet.thumbnails?.medium?.url ||
+          item.snippet.thumbnails?.default?.url, // Ambil thumbnail
       }));
 
     if (videos.length === 0) {
@@ -49,6 +52,7 @@ const getVideos = async (request, h) => {
           videoId: video.videoId,
           channelId,
           publishedAt: video.publishedAt,
+          thumbnail: video.thumbnail, // Simpan thumbnail ke Firestore
         });
       }
     });
