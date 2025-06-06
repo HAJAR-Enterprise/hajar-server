@@ -15,6 +15,8 @@ const getToken = async (userId) => {
   const doc = await db.collection("tokens").doc(userId).get();
   if (!doc.exists) return null;
   const data = doc.data();
+  
+  
   return {
     ...data,
     refreshToken: decrypt(data.refreshToken),

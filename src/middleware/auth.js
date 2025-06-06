@@ -7,7 +7,11 @@ const authMiddleware = async (request, h) => {
   if (request.path === "/api/login/callback") {
     return h.continue;
   }
+  if (request.path === "/api/login") {
+    return h.continue;
+  }
 
+  //check header
   const authHeader = request.headers.authorization;
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return h
@@ -17,21 +21,22 @@ const authMiddleware = async (request, h) => {
   }
 
   const token = authHeader.split(" ")[1];
-
   oauth2Client.setCredentials({ access_token: token });
 
   try {
     const tokenInfo = await oauth2Client.getTokenInfo(token);
-    console.log("Token Info Response:", tokenInfo);
+
     const userId = tokenInfo.sub;
     if (!userId || userId.trim() === "") {
       throw new Error("User ID not found in token info");
     }
-    console.log("Extracted User ID:", userId);
 
     const storedToken = await getToken(userId);
     if (!storedToken) {
-      return h.response({ error: "Token not found" }).code(401).takeover();
+      return h
+        .response({ error: "Token tidak terdaftar" })
+        .code(401)
+        .takeover();
     }
 
     oauth2Client.setCredentials({
@@ -40,6 +45,8 @@ const authMiddleware = async (request, h) => {
     });
 
     request.auth = { credentials: { userId, token: tokenInfo.token || token } };
+    
+    
     return h.continue;
   } catch (error) {
     console.error(
@@ -57,7 +64,10 @@ const authMiddleware = async (request, h) => {
 
         const storedToken = await getToken(userId);
         if (!storedToken) {
-          return h.response({ error: "Token not found" }).code(401).takeover();
+          return h
+            .response({ error: "Token tidak terdaftar" })
+            .code(401)
+            .takeover();
         }
 
         oauth2Client.setCredentials({

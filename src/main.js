@@ -25,9 +25,6 @@ const init = async () => {
 
   // Register middleware for protected routes
   server.ext("onPreAuth", async (request, h) => {
-    if (request.route.settings.auth === false) {
-      return h.continue; // Lewati middleware untuk rute autentikasi
-    }
     return authMiddleware(request, h);
   });
 

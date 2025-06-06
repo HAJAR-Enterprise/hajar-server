@@ -132,9 +132,13 @@ const deleteAllComments = async (request, h) => {
       commentIds.push(doc.id);
     });
 
+    // Batasi hingga 50 komentar
+    const commentsToDelete = commentIds.slice(0, 50); // Ambil maksimal 50 komentar pertama
+    const totalComments = commentIds.length; // Total komentar awal
+
     // Hapus komentar dari YouTube terlebih dahulu
     const failedDeletions = [];
-    for (const commentId of commentIds) {
+    for (const commentId of commentsToDelete) {
       try {
         await youtube.comments.delete({ id: commentId });
       } catch (error) {
@@ -148,7 +152,7 @@ const deleteAllComments = async (request, h) => {
 
     // Update status di Firestore hanya untuk komentar yang berhasil dihapus
     const batch = db.batch();
-    commentIds.forEach((commentId) => {
+    commentsToDelete.forEach((commentId) => {
       if (!failedDeletions.includes(commentId)) {
         const ref = db.collection("comments").doc(commentId);
         batch.update(ref, {
@@ -160,12 +164,15 @@ const deleteAllComments = async (request, h) => {
 
     await batch.commit();
 
-    const deletedCount = commentIds.length - failedDeletions.length;
+    const deletedCount = commentsToDelete.length - failedDeletions.length;
+    const remainingComments = totalComments - deletedCount;
+
     if (failedDeletions.length > 0) {
       return h
         .response({
           message: `Deleted ${deletedCount} comments, failed to delete ${failedDeletions.length} comments`,
           failedCommentIds: failedDeletions,
+          remainingComments: remainingComments > 0 ? remainingComments : 0,
           token: credentials.token,
         })
         .code(207); // 207 Multi-Status untuk menunjukkan sebagian berhasil
@@ -174,6 +181,7 @@ const deleteAllComments = async (request, h) => {
     return h
       .response({
         message: `Deleted ${deletedCount} comments`,
+        remainingComments: remainingComments > 0 ? remainingComments : 0,
         token: credentials.token,
       })
       .code(200);
@@ -182,5 +190,4 @@ const deleteAllComments = async (request, h) => {
     return h.response({ error: error.message }).code(500);
   }
 };
-
 module.exports = { getComments, deleteComment, deleteAllComments };

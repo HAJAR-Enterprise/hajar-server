@@ -44,7 +44,11 @@ const callbackHandler = async (request, h) => {
 };
 
 const logoutHandler = async (request, h) => {
+  console.log(request.route.settings.auth);
+  
   const { credentials } = request.auth;
+  console.log(credentials);
+  
   const userId = credentials.userId;
 
   try {

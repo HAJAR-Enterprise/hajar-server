@@ -3,7 +3,10 @@ const db = require("../config/firebase");
 const { oauth2Client } = require("../auth/oauth");
 
 const getChannels = async (request, h) => {
+  
   const { credentials } = request.auth;
+  console.log(credentials);
+  
   oauth2Client.setCredentials({ access_token: credentials.token });
 
   const youtube = google.youtube({
