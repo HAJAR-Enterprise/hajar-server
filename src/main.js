@@ -20,7 +20,7 @@ const init = async () => {
     ...channelRoutes,
     ...videoRoutes,
     ...commentRoutes,
-    // ...reportRoutes,
+    ...reportRoutes,
   ]);
 
   // Register middleware for protected routes

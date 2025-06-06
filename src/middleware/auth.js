@@ -18,7 +18,6 @@ const authMiddleware = async (request, h) => {
     return h.response({ error: "Token not found" }).code(401).takeover();
   }
 
-  // Set credentials dengan refresh_token untuk memungkinkan refresh
   oauth2Client.setCredentials({
     access_token: token,
     refresh_token: storedToken.refreshToken,
@@ -26,7 +25,9 @@ const authMiddleware = async (request, h) => {
 
   try {
     const tokenInfo = await oauth2Client.getAccessToken();
-    console.log("Token Info:", tokenInfo.token); // Debug
+    console.log("Token Info:", tokenInfo.token);
+    await oauth2Client.getTokenInfo(token); // Validasi token
+
     request.auth = { credentials: { userId, token: tokenInfo.token || token } };
     return h.continue;
   } catch (error) {
@@ -34,7 +35,8 @@ const authMiddleware = async (request, h) => {
       "Middleware Auth Error:",
       error.response?.data || error.message
     );
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 400) {
+      // Tangani 401 dan 400
       try {
         console.log("Attempting to refresh token...");
         const refreshedTokens = await oauth2Client.refreshAccessToken();

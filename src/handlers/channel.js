@@ -18,7 +18,6 @@ const getChannels = async (request, h) => {
     });
     const channels = response.data.items;
 
-    // Simpan metadata channel ke Firestore
     const batch = db.batch();
     channels.forEach((channel) => {
       const ref = db.collection("channels").doc(channel.id);
@@ -30,7 +29,7 @@ const getChannels = async (request, h) => {
     });
     await batch.commit();
 
-    return h.response({ channels }).code(200);
+    return h.response({ channels, token: credentials.token }).code(200);
   } catch (error) {
     return h.response({ error: error.message }).code(500);
   }

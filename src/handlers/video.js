@@ -18,11 +18,11 @@ const getVideos = async (request, h) => {
       channelId,
       maxResults: 50,
       order: "date",
-      type: "video", // Hanya ambil video
+      type: "video",
     });
 
     const videos = response.data.items
-      .filter((item) => item.id.kind === "youtube#video") // Pastikan hanya video
+      .filter((item) => item.id.kind === "youtube#video")
       .map((item) => ({
         videoId: item.id.videoId,
         title: item.snippet.title,
@@ -31,14 +31,18 @@ const getVideos = async (request, h) => {
       }));
 
     if (videos.length === 0) {
-      return h.response({ message: "No videos found", videos: [] }).code(200);
+      return h
+        .response({
+          message: "No videos found",
+          videos: [],
+          token: credentials.token,
+        })
+        .code(200);
     }
 
-    // Simpan metadata video ke Firestore
     const batch = db.batch();
     videos.forEach((video) => {
       if (video.videoId) {
-        // Pastikan videoId ada
         const ref = db.collection("videos").doc(video.videoId);
         batch.set(ref, {
           title: video.title,
@@ -50,7 +54,7 @@ const getVideos = async (request, h) => {
     });
     await batch.commit();
 
-    return h.response({ videos }).code(200);
+    return h.response({ videos, token: credentials.token }).code(200);
   } catch (error) {
     console.error("Error fetching videos:", error);
     return h.response({ error: error.message }).code(500);

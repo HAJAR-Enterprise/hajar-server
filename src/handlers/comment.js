@@ -34,7 +34,6 @@ const getComments = async (request, h) => {
       nextPageToken = response.data.nextPageToken;
     } while (nextPageToken);
 
-    // Simpan ke Firestore dengan status 'pending'
     const batch = db.batch();
     allComments.forEach((comment) => {
       const ref = db.collection("comments").doc(comment.commentId);
@@ -46,10 +45,47 @@ const getComments = async (request, h) => {
     });
     await batch.commit();
 
-    return h.response({ comments: allComments }).code(200);
+    return h
+      .response({ comments: allComments, token: credentials.token })
+      .code(200);
   } catch (error) {
     return h.response({ error: error.message }).code(500);
   }
 };
 
-module.exports = { getComments };
+const deleteComment = async (request, h) => {
+  const { credentials } = request.auth;
+  const { channelId, videoId, commentId } = request.params;
+  oauth2Client.setCredentials({ access_token: credentials.token });
+
+  const youtube = google.youtube({
+    version: "v3",
+    auth: oauth2Client,
+  });
+
+  try {
+    // Hapus komentar dari YouTube
+    await youtube.comments.delete({
+      id: commentId,
+    });
+
+    // Update status di Firestore
+    const commentRef = db.collection("comments").doc(commentId);
+    await commentRef.update({
+      status: "deleted",
+      deletedAt: new Date().toISOString(),
+    });
+
+    return h
+      .response({
+        message: "Comment deleted successfully",
+        token: credentials.token,
+      })
+      .code(200);
+  } catch (error) {
+    console.error("Error deleting comment:", error);
+    return h.response({ error: error.message }).code(500);
+  }
+};
+
+module.exports = { getComments, deleteComment };
