@@ -2,7 +2,7 @@
 
 Backend sederhana untuk manajemen komentar YouTube menggunakan autentikasi Google OAuth dan Firestore.
 
-## Apa Itu Proyek Ini?
+## Tentang Proyek Ini?
 
 Proyek ini adalah backend untuk mengelola komentar di YouTube. Kamu bisa login dengan akun Google, ambil daftar komentar, dan hapus komentar (maksimal 50 sekaligus). Token disimpan aman di Firestore dengan enkripsi. Rencananya, akan ada analisis komentar pakai IndoBERT (tunggu tim selesai).
 
@@ -11,6 +11,9 @@ Proyek ini adalah backend untuk mengelola komentar di YouTube. Kamu bisa login d
 - Node.js (versi 14 atau lebih baru)
 - Akun Google Cloud (untuk YouTube API)
 - Akun Firebase (untuk Firestore)
+
+## API Dokumentation
+https://documenter.getpostman.com/view/8931846/2sB2x2LagF
 
 ## Cara Pasang
 
