@@ -1,6 +1,7 @@
 const { getAuthUrl, getTokens } = require("../auth/oauth");
 const { saveToken, getToken } = require("../auth/token");
 const { oauth2Client } = require("../auth/oauth");
+const db = require("../config/firebase");
 
 const loginHandler = async (request, h) => {
   const authUrl = getAuthUrl();
@@ -15,9 +16,9 @@ const callbackHandler = async (request, h) => {
 
   try {
     const tokens = await getTokens(code);
-    console.log("Received Tokens in Callback:", tokens); // Debug
+    console.log("Received Tokens in Callback:", tokens);
     const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
-    console.log("Token Info:", tokenInfo); // Debug
+    console.log("Token Info:", tokenInfo);
     const userId = tokenInfo.sub;
     if (!userId || userId.trim() === "") {
       return h.response({ error: "Invalid user ID from token info" }).code(400);
@@ -42,4 +43,17 @@ const callbackHandler = async (request, h) => {
   }
 };
 
-module.exports = { loginHandler, callbackHandler };
+const logoutHandler = async (request, h) => {
+  const { credentials } = request.auth;
+  const userId = credentials.userId;
+
+  try {
+    await db.collection("tokens").doc(userId).delete();
+    return h.response({ message: "Logout successful" }).code(200);
+  } catch (error) {
+    console.error("Logout Error:", error);
+    return h.response({ error: "Failed to logout" }).code(500);
+  }
+};
+
+module.exports = { loginHandler, callbackHandler, logoutHandler };

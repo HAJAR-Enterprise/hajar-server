@@ -1,4 +1,8 @@
-const { loginHandler, callbackHandler } = require("../handlers/auth");
+const {
+  loginHandler,
+  callbackHandler,
+  logoutHandler,
+} = require("../handlers/auth");
 
 module.exports = [
   {
@@ -10,5 +14,13 @@ module.exports = [
     method: "GET",
     path: "/api/login/callback",
     handler: callbackHandler,
+  },
+  {
+    method: "POST",
+    path: "/api/logout",
+    handler: logoutHandler,
+    options: {
+      auth: "jwt", // Pastikan middleware auth aktif untuk endpoint ini
+    },
   },
 ];
