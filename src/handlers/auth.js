@@ -1,7 +1,9 @@
-const { getAuthUrl, getTokens } = require("../auth/oauth");
-const { saveToken, getToken } = require("../auth/token");
-const { oauth2Client } = require("../auth/oauth");
-const db = require("../config/firebase");
+const { getAuthUrl, getTokens } = require('../auth/oauth');
+const { saveToken, getToken } = require('../auth/token');
+const { oauth2Client } = require('../auth/oauth');
+const db = require('../config/firebase');
+
+const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
 
 const loginHandler = async (request, h) => {
   const authUrl = getAuthUrl();
@@ -11,31 +13,29 @@ const loginHandler = async (request, h) => {
 const callbackHandler = async (request, h) => {
   const { code } = request.query;
   if (!code) {
-    return h.response({ error: "Code not provided" }).code(400);
+    return h.response({ error: 'Code not provided' }).code(400);
   }
 
   try {
     const tokens = await getTokens(code);
-    console.log("Received Tokens in Callback:", tokens);
+    console.log('Received Tokens in Callback:', tokens);
     const tokenInfo = await oauth2Client.getTokenInfo(tokens.access_token);
-    console.log("Token Info:", tokenInfo);
+    console.log('Token Info:', tokenInfo);
     const userId = tokenInfo.sub;
-    if (!userId || userId.trim() === "") {
-      return h.response({ error: "Invalid user ID from token info" }).code(400);
+    if (!userId || userId.trim() === '') {
+      return h.response({ error: 'Invalid user ID from token info' }).code(400);
     }
     await saveToken(userId, tokens);
-    return h
-      .response({
-        message: "Login successful",
-        tokens: { accessToken: tokens.access_token },
-      })
-      .code(200);
+    console.log('Token saved for user:', userId);
+    return h.redirect(
+      `${frontendUrl}/dashboard?token=${tokens.access_token}&userId=${userId}`
+    );
   } catch (error) {
-    console.error("OAuth Error:", error.message);
-    if (error.message.includes("invalid_grant")) {
+    console.error('OAuth Error:', error.message);
+    if (error.message.includes('invalid_grant')) {
       return h
         .response({
-          error: "Invalid authorization code, please try logging in again",
+          error: 'Invalid authorization code, please try logging in again',
         })
         .code(401);
     }
@@ -45,18 +45,18 @@ const callbackHandler = async (request, h) => {
 
 const logoutHandler = async (request, h) => {
   console.log(request.route.settings.auth);
-  
+
   const { credentials } = request.auth;
   console.log(credentials);
-  
+
   const userId = credentials.userId;
 
   try {
-    await db.collection("tokens").doc(userId).delete();
-    return h.response({ message: "Logout successful" }).code(200);
+    await db.collection('tokens').doc(userId).delete();
+    return h.response({ message: 'Logout successful' }).code(200);
   } catch (error) {
-    console.error("Logout Error:", error);
-    return h.response({ error: "Failed to logout" }).code(500);
+    console.error('Logout Error:', error);
+    return h.response({ error: 'Failed to logout' }).code(500);
   }
 };
 
