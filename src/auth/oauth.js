@@ -9,7 +9,7 @@ const oauth2Client = new google.auth.OAuth2(
 
 const scopes = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
-  "profile", // Tambah scope untuk informasi pengguna
+  "https://www.googleapis.com/auth/userinfo.profile", // Tambah scope untuk informasi pengguna
 ];
 
 const getAuthUrl = () => {
@@ -34,4 +34,11 @@ const getTokens = async (code) => {
   }
 };
 
-module.exports = { oauth2Client, getAuthUrl, getTokens };
+const getUserProfile = async (tokens) => {
+  oauth2Client.setCredentials(tokens);
+  const oauth2 = google.oauth2({ version: 'v2', auth: oauth2Client });
+  const { data } = await oauth2.userinfo.get();
+  return data;
+};
+
+module.exports = { oauth2Client, getAuthUrl, getTokens, getUserProfile };

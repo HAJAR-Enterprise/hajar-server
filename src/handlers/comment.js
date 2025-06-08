@@ -26,6 +26,8 @@ const getComments = async (request, h) => {
       });
       const comments = response.data.items.map((item) => ({
         commentId: item.id,
+        author: item.snippet.topLevelComment.snippet.authorDisplayName,
+        authorProfileImageURL: item.snippet.topLevelComment.snippet.authorProfileImageUrl,
         text: item.snippet.topLevelComment.snippet.textOriginal,
         videoId,
         channelId,
@@ -33,6 +35,7 @@ const getComments = async (request, h) => {
       allComments = allComments.concat(comments);
       nextPageToken = response.data.nextPageToken;
     } while (nextPageToken);
+    console.log("Fetched Comments:", allComments);
 
     const batch = db.batch();
     allComments.forEach((comment) => {

@@ -1,4 +1,4 @@
-const { getAuthUrl, getTokens } = require('../auth/oauth');
+const { getAuthUrl, getTokens, getUserProfile } = require('../auth/oauth');
 const { saveToken, getToken } = require('../auth/token');
 const { oauth2Client } = require('../auth/oauth');
 const db = require('../config/firebase');
@@ -27,8 +27,12 @@ const callbackHandler = async (request, h) => {
     }
     await saveToken(userId, tokens);
     console.log('Token saved for user:', userId);
+    const profile = await getUserProfile(tokens);
+    console.log('User Profile:', profile);
     return h.redirect(
-      `${frontendUrl}/dashboard?token=${tokens.access_token}&userId=${userId}`
+      `${frontendUrl}/dashboard?token=${
+        tokens.access_token
+      }&userId=${userId}&name=${encodeURIComponent(profile.name)}`
     );
   } catch (error) {
     console.error('OAuth Error:', error.message);
