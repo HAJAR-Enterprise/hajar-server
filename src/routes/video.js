@@ -8,7 +8,7 @@ module.exports = [
  
   },
   {
-    method: "POST",
+    method: "PUT",
     path: "/api/{channelId}/videos/sync",
     handler: syncVideosFromYouTube,
   

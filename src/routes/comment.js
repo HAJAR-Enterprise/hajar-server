@@ -13,7 +13,7 @@ module.exports = [
    
   },
   {
-    method: "POST",
+    method: "PUT",
     path: "/api/{channelId}/{videoId}/comments/sync",
     handler: syncCommentsFromYouTube,
  
