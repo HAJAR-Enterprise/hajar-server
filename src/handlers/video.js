@@ -5,6 +5,37 @@ const { oauth2Client } = require("../auth/oauth");
 const getVideos = async (request, h) => {
   const { credentials } = request.auth;
   const { channelId } = request.params;
+
+  try {
+    const snapshot = await db
+      .collection("videos")
+      .where("channelId", "==", channelId)
+      .get();
+    if (snapshot.empty) {
+      return h
+        .response({
+          message: "No videos found in database",
+          videos: [],
+          token: credentials.token,
+        })
+        .code(200);
+    }
+
+    const videos = [];
+    snapshot.forEach((doc) => {
+      videos.push(doc.data());
+    });
+
+    return h.response({ videos, token: credentials.token }).code(200);
+  } catch (error) {
+    console.error("Error fetching videos from DB:", error);
+    return h.response({ error: error.message }).code(500);
+  }
+};
+
+const syncVideosFromYouTube = async (request, h) => {
+  const { credentials } = request.auth;
+  const { channelId } = request.params;
   oauth2Client.setCredentials({ access_token: credentials.token });
 
   const youtube = google.youtube({
@@ -30,7 +61,7 @@ const getVideos = async (request, h) => {
         publishedAt: item.snippet.publishedAt,
         thumbnail:
           item.snippet.thumbnails?.medium?.url ||
-          item.snippet.thumbnails?.default?.url, // Ambil thumbnail
+          item.snippet.thumbnails?.default?.url,
       }));
 
     if (videos.length === 0) {
@@ -47,22 +78,16 @@ const getVideos = async (request, h) => {
     videos.forEach((video) => {
       if (video.videoId) {
         const ref = db.collection("videos").doc(video.videoId);
-        batch.set(ref, {
-          title: video.title,
-          videoId: video.videoId,
-          channelId,
-          publishedAt: video.publishedAt,
-          thumbnail: video.thumbnail, // Simpan thumbnail ke Firestore
-        });
+        batch.set(ref, video, { merge: true });
       }
     });
     await batch.commit();
 
     return h.response({ videos, token: credentials.token }).code(200);
   } catch (error) {
-    console.error("Error fetching videos:", error);
+    console.error("Error syncing videos from YouTube:", error);
     return h.response({ error: error.message }).code(500);
   }
 };
 
-module.exports = { getVideos };
+module.exports = { getVideos, syncVideosFromYouTube };
