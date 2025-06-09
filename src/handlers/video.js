@@ -44,7 +44,8 @@ const syncVideosFromYouTube = async (request, h) => {
   });
 
   try {
-    const response = await youtube.search.list({
+    // Langkah 1: Dapatkan daftar video ID dari search
+    const searchResponse = await youtube.search.list({
       part: "snippet",
       channelId,
       maxResults: 50,
@@ -52,19 +53,11 @@ const syncVideosFromYouTube = async (request, h) => {
       type: "video",
     });
 
-    const videos = response.data.items
+    const videoIds = searchResponse.data.items
       .filter((item) => item.id.kind === "youtube#video")
-      .map((item) => ({
-        videoId: item.id.videoId,
-        title: item.snippet.title,
-        channelId,
-        publishedAt: item.snippet.publishedAt,
-        thumbnail:
-          item.snippet.thumbnails?.medium?.url ||
-          item.snippet.thumbnails?.default?.url,
-      }));
+      .map((item) => item.id.videoId);
 
-    if (videos.length === 0) {
+    if (videoIds.length === 0) {
       return h
         .response({
           message: "No videos found",
@@ -73,6 +66,27 @@ const syncVideosFromYouTube = async (request, h) => {
         })
         .code(200);
     }
+
+    // Langkah 2: Dapatkan detail statistik (termasuk viewCount) dari videos.list
+    const videosResponse = await youtube.videos.list({
+      part: "snippet,statistics",
+      id: videoIds.join(","),
+    });
+
+    // sekalian lah ya 
+
+    const videos = videosResponse.data.items.map((item) => ({
+      videoId: item.id,
+      title: item.snippet.title,
+      channelId,
+      publishedAt: item.snippet.publishedAt,
+      thumbnail:
+        item.snippet.thumbnails?.medium?.url ||
+        item.snippet.thumbnails?.default?.url,
+      viewCount: item.statistics?.viewCount || 0, 
+      likeCount: item.statistics?.likeCount || 0, 
+      commentCount: item.statistics?.commentCount || 0,
+    }));
 
     const batch = db.batch();
     videos.forEach((video) => {
