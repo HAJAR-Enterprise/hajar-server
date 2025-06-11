@@ -50,7 +50,7 @@ const syncChannelsFromYouTube = async (request, h) => {
 
   try {
     const response = await youtube.channels.list({
-      part: 'snippet,contentDetails',
+      part: 'snippet,contentDetails,statistics',
       mine: true,
     });
     const channels = response.data.items.map((channel) => ({
@@ -59,6 +59,11 @@ const syncChannelsFromYouTube = async (request, h) => {
       ownerId: userId,
       description: channel.snippet.description,
       createdAt: new Date().toISOString(),
+      publishedAt: channel.snippet.publishedAt,
+      thumbnail: channel.snippet.thumbnails?.high?.url || '',
+      subscriberCount: channel.statistics?.subscriberCount || 0,
+      videoCount: channel.statistics?.videoCount || 0,
+      viewCount: channel.statistics?.viewCount || 0,
     }));
 
     if (channels.length === 0) {
