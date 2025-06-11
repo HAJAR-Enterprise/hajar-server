@@ -9,6 +9,7 @@ const oauth2Client = new google.auth.OAuth2(
 
 const scopes = [
   "https://www.googleapis.com/auth/youtube.force-ssl",
+  "https://www.googleapis.com/auth/youtube",
   "https://www.googleapis.com/auth/userinfo.profile", // Tambah scope untuk informasi pengguna
 ];
 

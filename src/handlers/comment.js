@@ -112,24 +112,38 @@ const deleteComment = async (request, h) => {
     }
 
     const commentData = commentDoc.data();
-    if (commentData.status === "deleted") {
-      return h.response({ error: "Comment already deleted" }).code(400);
+    if (commentData.status === "deleted" || commentData.status === "hidden") {
+      return h.response({ error: "Comment already moderated" }).code(400);
     }
 
-    await youtube.comments.delete({ id: commentId });
-    await commentRef.update({
-      status: "deleted",
-      deletedAt: new Date().toISOString(),
+    // Coba ubah status menjadi 'heldForReview' (disembunyikan)
+    await youtube.comments.setModerationStatus({
+      id: commentId,
+      moderationStatus: "heldForReview",
     });
 
+    // Perbarui status di Firestore
+    await commentRef.update({
+      status: "hidden",
+      moderatedAt: new Date().toISOString(),
+    });
+
+    console.log(
+      `Comment ${commentId} hidden successfully for video ${videoId}`
+    );
     return h
       .response({
-        message: "Comment deleted successfully",
+        message: "Comment hidden successfully",
         token: credentials.token,
       })
       .code(200);
   } catch (error) {
-    console.error("Error deleting comment:", error);
+    console.error(`Error moderating comment ${commentId}:`, error);
+    if (error.code === 403) {
+      return h
+        .response({ error: "Permission denied: Cannot moderate this comment" })
+        .code(403);
+    }
     return h.response({ error: error.message }).code(500);
   }
 };
@@ -149,13 +163,12 @@ const deleteAllComments = async (request, h) => {
       .collection("comments")
       .where("videoId", "==", videoId)
       .where("channelId", "==", channelId)
-      .where("status", "!=", "deleted")
       .get();
 
     if (snapshot.empty) {
       return h
         .response({
-          message: "No comments to delete",
+          message: "No comments to moderate",
           token: credentials.token,
         })
         .code(200);
@@ -163,46 +176,63 @@ const deleteAllComments = async (request, h) => {
 
     const commentIds = [];
     snapshot.forEach((doc) => {
-      commentIds.push(doc.id);
+      const data = doc.data();
+      // Filter komentar yang belum di-moderate (bukan deleted atau hidden)
+      if (data.status !== "deleted" && data.status !== "hidden") {
+        commentIds.push(doc.id);
+      }
     });
 
-    const commentsToDelete = commentIds.slice(0, 50);
+    const commentsToModerate = commentIds.slice(0, 50);
     const totalComments = commentIds.length;
 
-    const failedDeletions = [];
-    for (const commentId of commentsToDelete) {
+    const failedModerations = [];
+    for (const commentId of commentsToModerate) {
       try {
-        await youtube.comments.delete({ id: commentId });
+        await youtube.comments.setModerationStatus({
+          id: commentId,
+          moderationStatus: "heldForReview",
+        });
       } catch (error) {
         console.error(
-          `Failed to delete comment ${commentId} from YouTube:`,
+          `Failed to moderate comment ${commentId} from YouTube:`,
           error
         );
-        failedDeletions.push(commentId);
+        if (error.code === 403) {
+          failedModerations.push({
+            id: commentId,
+            reason: "Permission denied: Not owned by channel",
+          });
+        } else {
+          failedModerations.push({ id: commentId, reason: error.message });
+        }
       }
     }
 
     const batch = db.batch();
-    commentsToDelete.forEach((commentId) => {
-      if (!failedDeletions.includes(commentId)) {
+    commentsToModerate.forEach((commentId) => {
+      if (!failedModerations.some((fail) => fail.id === commentId)) {
         const ref = db.collection("comments").doc(commentId);
         batch.update(ref, {
-          status: "deleted",
-          deletedAt: new Date().toISOString(),
+          status: "hidden",
+          moderatedAt: new Date().toISOString(),
         });
       }
     });
 
     await batch.commit();
 
-    const deletedCount = commentsToDelete.length - failedDeletions.length;
-    const remainingComments = totalComments - deletedCount;
+    const moderatedCount = commentsToModerate.length - failedModerations.length;
+    const remainingComments = totalComments - moderatedCount;
 
-    if (failedDeletions.length > 0) {
+    if (failedModerations.length > 0) {
       return h
         .response({
-          message: `Deleted ${deletedCount} comments, failed to delete ${failedDeletions.length} comments`,
-          failedCommentIds: failedDeletions,
+          message: `Hidden ${moderatedCount} comments, failed to moderate ${failedModerations.length} comments`,
+          failedCommentIds: failedModerations.map((fail) => ({
+            id: fail.id,
+            reason: fail.reason,
+          })),
           remainingComments: remainingComments > 0 ? remainingComments : 0,
           token: credentials.token,
         })
@@ -211,13 +241,13 @@ const deleteAllComments = async (request, h) => {
 
     return h
       .response({
-        message: `Deleted ${deletedCount} comments`,
+        message: `Hidden ${moderatedCount} comments`,
         remainingComments: remainingComments > 0 ? remainingComments : 0,
         token: credentials.token,
       })
       .code(200);
   } catch (error) {
-    console.error("Error deleting all comments:", error);
+    console.error("Error moderating all comments:", error);
     return h.response({ error: error.message }).code(500);
   }
 };
