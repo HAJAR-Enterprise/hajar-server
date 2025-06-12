@@ -3,7 +3,7 @@ const { saveToken, getToken } = require('../auth/token');
 const { oauth2Client } = require('../auth/oauth');
 const db = require('../config/firebase');
 
-const frontendUrl = process.env.FRONTEND_URL || "http://0.0.0.0:3000";
+const frontendUrl = process.env.FRONTEND_URL || "http://localhost:3000";
 
 const loginHandler = async (request, h) => {
   const authUrl = getAuthUrl();
