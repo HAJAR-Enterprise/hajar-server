@@ -1,7 +1,8 @@
 const { google } = require("googleapis");
 const db = require("../config/firebase");
 const { oauth2Client } = require("../auth/oauth");
-
+const axios = require("axios");
+require("dotenv").config();
 
 const getComments = async (request, h) => {
   const { credentials } = request.auth;
@@ -49,6 +50,7 @@ const syncCommentsFromYouTube = async (request, h) => {
   let nextPageToken = null;
 
   try {
+    // Ambil semua komentar dari YouTube
     do {
       const response = await youtube.commentThreads.list({
         part: "snippet",
@@ -70,26 +72,60 @@ const syncCommentsFromYouTube = async (request, h) => {
     } while (nextPageToken);
     console.log("Fetched Comments:", allComments);
 
+    // Kirim semua data ke ML
+    const mlEndpoint = process.env.ML_URL; // http://localhost:5001/classify
+    const mlRequestData = { comments: allComments };
+    const mlResponse = await axios.post(mlEndpoint, mlRequestData, {
+      headers: { "Content-Type": "application/json" },
+    });
+    const mlResults = mlResponse.data.results || [];
+    console.log("ML Results:", mlResults);
+
+    // Hapus komentar lama dari Firestore (kecuali deleted atau hidden)
+    const snapshot = await db.collection("comments").get();
+    const batchDelete = db.batch();
+    snapshot.forEach((doc) => {
+      const data = doc.data();
+      if (data.status !== "deleted" && data.status !== "hidden") {
+        batchDelete.delete(doc.ref);
+      }
+    });
+    await batchDelete.commit();
+    console.log("Cleared old comments from Firestore (except deleted/hidden)");
+
+    // Filter dan simpan cuma komentar "judi" ke Firestore
+    const judiCommentIds = mlResults
+      .filter((result) => result.label === "judi")
+      .map((r) => r.commentId);
+    const judiComments = allComments.filter((comment) =>
+      judiCommentIds.includes(comment.commentId)
+    );
+
     const batch = db.batch();
-    allComments.forEach((comment) => {
+    judiComments.forEach((comment) => {
       const ref = db.collection("comments").doc(comment.commentId);
       batch.set(
         ref,
         {
           ...comment,
-          status: "pending",
+          status: "judi",
           createdAt: new Date().toISOString(),
         },
         { merge: true }
       );
     });
     await batch.commit();
+    console.log("Saved judi comments to Firestore:", judiComments);
 
+    // Balik ke frontend cuma comment yang terdeteksi sebagai "judi"
     return h
-      .response({ comments: allComments, token: credentials.token })
+      .response({ comments: judiComments, token: credentials.token })
       .code(200);
   } catch (error) {
-    console.error("Error syncing comments from YouTube:", error);
+    console.error("Error syncing comments from YouTube or ML:", error);
+    if (error.response) {
+      console.error("ML API Error:", error.response.data);
+    }
     return h.response({ error: error.message }).code(500);
   }
 };
