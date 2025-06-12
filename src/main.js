@@ -11,13 +11,13 @@ const { authMiddleware } = require("./middleware/auth");
 const init = async () => {
   const server = Hapi.server({
     port: process.env.PORT || 3000,
-    host: "localhost",
+    host: "0.0.0.0",
     routes: {
       cors: {
-        origin: ["*"], 
-        headers: ["Authorization", "Content-Type"], 
+        origin: ["*"],
+        headers: ["Authorization", "Content-Type"],
         additionalHeaders: ["cache-control", "x-requested-with"],
-        credentials: true, 
+        credentials: true,
       },
     },
   });
