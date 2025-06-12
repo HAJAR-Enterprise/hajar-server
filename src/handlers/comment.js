@@ -73,7 +73,7 @@ const syncCommentsFromYouTube = async (request, h) => {
     console.log("Fetched Comments:", allComments);
 
     // Kirim semua data ke ML
-    const mlEndpoint = process.env.ML_URL; // http://localhost:5001/classify
+    const mlEndpoint = process.env.ML_URL;
     const mlRequestData = { comments: allComments };
     const mlResponse = await axios.post(mlEndpoint, mlRequestData, {
       headers: { "Content-Type": "application/json" },
@@ -86,7 +86,7 @@ const syncCommentsFromYouTube = async (request, h) => {
     const batchDelete = db.batch();
     snapshot.forEach((doc) => {
       const data = doc.data();
-      if (data.status !== "deleted" && data.status !== "hidden") {
+      if (!(data.status === "deleted" || data.status === "hidden")) {
         batchDelete.delete(doc.ref);
       }
     });
