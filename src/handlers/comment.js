@@ -213,7 +213,6 @@ const deleteAllComments = async (request, h) => {
     const commentIds = [];
     snapshot.forEach((doc) => {
       const data = doc.data();
-      // Filter komentar yang belum di-moderate (bukan deleted atau hidden)
       if (data.status !== "deleted" && data.status !== "hidden") {
         commentIds.push(doc.id);
       }
@@ -223,12 +222,29 @@ const deleteAllComments = async (request, h) => {
     const totalComments = commentIds.length;
 
     const failedModerations = [];
+    const successfullyModerated = [];
+
     for (const commentId of commentsToModerate) {
       try {
         await youtube.comments.setModerationStatus({
           id: commentId,
           moderationStatus: "heldForReview",
         });
+
+        // Validasi dengan comments.list
+        const response = await youtube.comments.list({
+          part: "snippet",
+          id: commentId,
+        });
+        const comment = response.data.items[0];
+        if (comment && comment.snippet.moderationStatus === "heldForReview") {
+          successfullyModerated.push(commentId);
+        } else {
+          failedModerations.push({
+            id: commentId,
+            reason: "Status not updated to heldForReview",
+          });
+        }
       } catch (error) {
         console.error(
           `Failed to moderate comment ${commentId} from YouTube:`,
@@ -247,18 +263,23 @@ const deleteAllComments = async (request, h) => {
 
     const batch = db.batch();
     commentsToModerate.forEach((commentId) => {
-      if (!failedModerations.some((fail) => fail.id === commentId)) {
+      if (successfullyModerated.includes(commentId)) {
         const ref = db.collection("comments").doc(commentId);
         batch.update(ref, {
           status: "hidden",
           moderatedAt: new Date().toISOString(),
+        });
+      } else if (!failedModerations.some((fail) => fail.id === commentId)) {
+        failedModerations.push({
+          id: commentId,
+          reason: "Unknown moderation failure",
         });
       }
     });
 
     await batch.commit();
 
-    const moderatedCount = commentsToModerate.length - failedModerations.length;
+    const moderatedCount = successfullyModerated.length;
     const remainingComments = totalComments - moderatedCount;
 
     if (failedModerations.length > 0) {
