@@ -72,13 +72,13 @@ const syncCommentsFromYouTube = async (request, h) => {
     } while (nextPageToken);
     console.log("Fetched Comments:", allComments);
 
-    // Kirim semua data ke ML
+    // Kirim semua data ke ML sebagai array langsung
     const mlEndpoint = process.env.ML_URL;
-    const mlRequestData = { comments: allComments };
+    const mlRequestData = allComments; // Kirim array langsung
     const mlResponse = await axios.post(mlEndpoint, mlRequestData, {
       headers: { "Content-Type": "application/json" },
     });
-    const mlResults = mlResponse.data.results || [];
+    const mlResults = mlResponse.data || [];
     console.log("ML Results:", mlResults);
 
     // Hapus komentar lama dari Firestore (kecuali deleted atau hidden)
